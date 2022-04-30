@@ -1,0 +1,46 @@
+version: '3.4'
+
+x-flask-env: &flask-env
+  environment:
+    - FLASK_ENV=development
+    - FLASK_APP=flask_app.py
+  build: .
+  command: ['flask', 'run', '--host=0.0.0.0', '--port=8000']
+  # command: ['gunicorn', '-b', '0.0.0.0:8000', 'flask_app:app']
+
+
+services:
+  traefik:
+    image: traefik:v2.4
+    restart: unless-stopped
+    container_name: traefik
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock:ro'
+      - './traefik.yaml:/etc/traefik/traefik.yaml'
+      - './certs:/etc/certs/:ro'
+    ports:
+      - 80:80
+      - 443:443
+      - 8080:8080
+    labels:
+      - "traefik.http.routers.dashboard.rule=Host(`dashboard.localhost`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+  backend1:
+    <<: *flask-env
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.services.backend1.loadbalancer.server.port=8000'
+      - 'traefik.http.routers.backend1.rule=Host(`backend1.localhost`)'
+      - 'traefik.http.routers.backend1.tls=true'
+      - 'traefik.http.routers.backend1.entrypoints=web,websecure'
+  backend2:
+    <<: *flask-env
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.services.backend2.loadbalancer.server.port=8000'
+      - 'traefik.http.routers.backend2.rule=Host(`backend2.localhost`)'
+      - 'traefik.http.routers.backend2.tls=true'
+      - 'traefik.http.routers.backend2.entrypoints=web,websecure'
+
+volumes:
+  traefik_data: {}
